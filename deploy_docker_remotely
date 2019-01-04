@@ -1,0 +1,39 @@
+pipeline {
+  agent any
+  stages {
+
+    stage('Building image') {
+      steps{
+        script {
+          app = docker.build("stefkkk/test-pipeline:${BUILD_NUMBER}")
+        }
+      }
+    }
+
+    stage('Push Image') {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub') {
+                        app.push()
+                        app.push("latest")
+                        sh 'docker rmi stefkkk/test-pipeline:${BUILD_NUMBER}'
+                        sh 'docker rmi registry.hub.docker.com/stefkkk/test-pipeline:${BUILD_NUMBER}'
+                        sh 'docker rmi registry.hub.docker.com/stefkkk/test-pipeline:latest'
+                    }
+                }
+            }
+        }
+
+    stage('Deploy to Prod') {
+          steps {
+            script {
+              def dockerRun = 'docker run -p 8080:8080 -d --name my-app stefkkk/test-pipeline:latest'
+              sshagent(['master-server']) {
+                 sh "ssh -o StrictHostKeyChecking=no root@192.168.0.20 ${dockerRun}"
+//                sh "ssh -o StrictHostKeyChecking=no root@192.168.0.20 docker stack deploy -c docker-compose.yml app10"
+          } 
+        }
+      }
+    }
+  }  
+}
