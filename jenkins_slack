@@ -1,0 +1,32 @@
+pipeline {
+   agent { node { label "${params.NODE}" } }
+    stages {
+        stage('Package docker images') {
+            steps{
+            sh "mkdir -p server.${params.VERSION}"
+            sh "cp Scripts/install.sh server.${params.VERSION}"
+            script {
+		env.ARTEFACT = sh returnStdout: true, script: "realpath server.${params.VERSION}"
+	    }
+           echo "$env.ARTEFACT"
+           // sh "docker save container1:${params.VERSION} -o docker_images.tar"
+           // sh "cp docker_images.tar server.${params.VERSION}"
+           // sh "tar cvzf server.${params.VERSION}.tar.gz server.${params.VERSION}"
+           
+            //sh "mv server.${params.VERSION}.tar.gz /var/"
+            }
+     /*   stage('Cleanup workspace') {
+            steps{
+            cleanWs()
+            }*/
+        }  
+    }
+    post {
+       success {
+           slackSend (color: '#00FF00', message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (<${env.BUILD_URL}|Open>) NODE: ${params.NODE} PACKAGE: ${env.ARTEFACT} ")
+       }
+       failure {
+           slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (<${env.BUILD_URL}|Open>)")
+       }
+    }
+}
