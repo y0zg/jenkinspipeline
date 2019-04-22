@@ -1,0 +1,24 @@
+stage('SonarQube') {
+    agent any
+    when { branch 'master' }
+    steps {
+        updateGitlabCommitStatus name: 'SonarQube', state: 'pending'
+
+        script {
+            docker.withRegistry("https://${DOCKER_REGISTRY}", "${GITLAB_REGISTRY_CREDS_ID}"){
+                def dockerImage = docker.build("${DOCKER_REGISTRY}/${GITLAB_PROJECT}/develop:${TAG}", "-f ./Dockerfile --pull --target sonar .")
+
+                dockerImage.inside("-u 0 -v /var/lib/jenkins/sonarqube:/sonarqube") {
+                    sh """
+                       cd /app
+                       cp /sonarqube/SonarQube.Analysis.xml ~/.dotnet/tools/.store/dotnet-sonarscanner/4.3.1/dotnet-sonarscanner/4.3.1/tools/netcoreapp2.1/any/SonarQube.Analysis.xml
+                       dotnet sonarscanner begin /k:${CHART_NAME} /v:${BRANCH_NAME}-${BUILD_NUMBER} /d:sonar.coverage.exclusions="**/*Tests*.*" /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
+                       dotnet build -c Release --no-restore
+                       find ./tests -type d -name '*Tests' | sed 's|^\\./||' | xargs -I{} -n1 sh -c 'cd {} && pwd && dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover --filter "Category!=Performance" -l console -c Release --no-build --no-restore'
+                       dotnet sonarscanner end
+                    """
+                }
+            }
+        }
+    }
+}
